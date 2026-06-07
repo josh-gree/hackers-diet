@@ -1,0 +1,187 @@
+:root {
+  --bg: #16161a;
+  --surface: #1f1f25;
+  --surface-2: #2a2a32;
+  --text: #eaeaf0;
+  --muted: #9a9aa8;
+  --accent: #4fd1c5;
+  --accent-d: #2c9c92;
+  --weight: #6b7280;
+  --goal: #f6ad55;
+  --danger: #f56565;
+  --radius: 14px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  overscroll-behavior-y: none;
+}
+
+body {
+  padding-bottom: calc(68px + var(--safe-b));
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(12px + var(--safe-t)) 18px 12px;
+  background: rgba(22,22,26,.85);
+  backdrop-filter: saturate(160%) blur(10px);
+  border-bottom: 1px solid var(--surface-2);
+}
+.app-header h1 { font-size: 1.15rem; margin: 0; letter-spacing: .3px; }
+.trend-badge { font-size: .82rem; color: var(--muted); text-align: right; }
+.trend-badge strong { color: var(--accent); }
+
+main { padding: 14px; }
+
+.view { display: none; animation: fade .18s ease; }
+.view.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none; } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--surface-2);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.card h2 { font-size: 1rem; margin: 0 0 12px; }
+
+.field { display: block; margin-bottom: 14px; }
+.field span { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 6px; }
+.field em { font-style: normal; color: var(--accent); }
+
+input, select {
+  width: 100%;
+  padding: 13px 14px;
+  font-size: 1.05rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid #34343d;
+  border-radius: 10px;
+  appearance: none;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+.entry-row { display: flex; gap: 12px; }
+.entry-row .field { flex: 1; }
+
+.btn {
+  display: inline-block;
+  width: 100%;
+  padding: 13px 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid #34343d;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform .05s ease, background .15s ease;
+}
+.btn:active { transform: scale(.985); }
+.btn.primary { background: var(--accent); color: #06231f; border-color: var(--accent); }
+.btn.danger { background: transparent; color: var(--danger); border-color: #5a2a2a; margin-top: 10px; }
+.btn-row { display: flex; gap: 10px; margin-bottom: 4px; }
+.btn-row .btn { width: auto; flex: 1; }
+
+.entry-list { list-style: none; margin: 0; padding: 0; }
+.entry-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--surface-2);
+}
+.entry-list li:last-child { border-bottom: none; }
+.entry-list .e-date { color: var(--muted); font-size: .85rem; min-width: 92px; }
+.entry-list .e-weight { font-weight: 600; font-variant-numeric: tabular-nums; }
+.entry-list .e-trend { color: var(--accent); font-size: .85rem; font-variant-numeric: tabular-nums; margin-left: auto; }
+.entry-list .e-del {
+  background: none; border: none; color: var(--muted);
+  font-size: 1.2rem; padding: 2px 6px; cursor: pointer; width: auto;
+}
+
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+.formula {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .9rem;
+  color: var(--accent);
+}
+
+.chart-head { display: flex; align-items: center; justify-content: space-between; }
+.range-toggle { display: flex; background: var(--surface-2); border-radius: 8px; overflow: hidden; }
+.range-toggle button {
+  width: auto; background: none; border: none; color: var(--muted);
+  padding: 6px 11px; font-size: .8rem; cursor: pointer;
+}
+.range-toggle button.active { background: var(--accent); color: #06231f; font-weight: 600; }
+
+canvas { width: 100%; display: block; margin: 8px 0; touch-action: pan-y; }
+
+.legend { display: flex; gap: 16px; justify-content: center; font-size: .78rem; color: var(--muted); flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.legend .dot.weight { background: var(--weight); }
+.legend .line { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend .line.trend { background: var(--accent); }
+.legend .line.goal { background: var(--goal); }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.stat { background: var(--surface-2); border-radius: 10px; padding: 14px; }
+.stat .label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.stat .value { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.stat .value.sub { font-size: .8rem; font-weight: 400; color: var(--muted); }
+.stat .value.up { color: var(--danger); }
+.stat .value.down { color: var(--accent); }
+
+.tabbar {
+  position: fixed;
+  bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 640px;
+  display: flex;
+  background: rgba(22,22,26,.92);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--surface-2);
+  padding-bottom: var(--safe-b);
+  z-index: 10;
+}
+.tab {
+  flex: 1; background: none; border: none; color: var(--muted);
+  font-size: .68rem; padding: 9px 0 7px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.tab .ico { font-size: 1.25rem; line-height: 1; }
+.tab.active { color: var(--accent); }
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f4f7; --surface: #ffffff; --surface-2: #ececed;
+    --text: #1a1a1f; --muted: #6b6b78; --weight: #b0b4bd;
+  }
+  .app-header, .tabbar { background: rgba(244,244,247,.85); }
+  input, select { background: #f7f7f9; }
+  .btn.primary { color: #06231f; }
+}

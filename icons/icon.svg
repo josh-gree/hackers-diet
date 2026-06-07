@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f2933"/><stop offset="1" stop-color="#16161a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  <!-- noisy daily-weight dots -->
+  <g fill="#6b7280">
+    <circle cx="108" cy="300" r="9"/><circle cx="156" cy="268" r="9"/>
+    <circle cx="204" cy="296" r="9"/><circle cx="252" cy="248" r="9"/>
+    <circle cx="300" cy="276" r="9"/><circle cx="348" cy="228" r="9"/>
+    <circle cx="396" cy="252" r="9"/>
+  </g>
+  <!-- smoothed trend line, heading down -->
+  <polyline points="100,296 156,284 212,272 268,258 324,242 380,224 412,214"
+    fill="none" stroke="#4fd1c5" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- baseline -->
+  <rect x="96" y="372" width="320" height="14" rx="7" fill="#34343d"/>
+</svg>

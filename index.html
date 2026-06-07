@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#16161a" />
+  <meta name="description" content="Weight tracking the Hacker's Diet way: daily weigh-ins, a smoothed trend line, and the calorie math that drives it." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Hacker's Diet" />
+  <title>Hacker's Diet</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Hacker&rsquo;s Diet</h1>
+    <div class="trend-badge" id="headerTrend" aria-live="polite"></div>
+  </header>
+
+  <main>
+    <!-- LOG VIEW -->
+    <section id="view-log" class="view active">
+      <form id="entryForm" class="card entry-card" autocomplete="off">
+        <h2>Weigh in</h2>
+        <div class="entry-row">
+          <label class="field">
+            <span>Date</span>
+            <input type="date" id="entryDate" required />
+          </label>
+          <label class="field">
+            <span>Weight (<em id="unitLabel">kg</em>)</span>
+            <input type="number" id="entryWeight" inputmode="decimal" step="0.1" min="0" placeholder="0.0" required />
+          </label>
+        </div>
+        <button type="submit" class="btn primary">Save weigh-in</button>
+      </form>
+
+      <div class="card">
+        <h2>Recent weigh-ins</h2>
+        <ul id="entryList" class="entry-list"></ul>
+        <p id="emptyLog" class="muted">No weigh-ins yet. Step on the scale every morning and log it &mdash; the trend does the rest.</p>
+      </div>
+    </section>
+
+    <!-- CHART VIEW -->
+    <section id="view-chart" class="view">
+      <div class="card">
+        <div class="chart-head">
+          <h2>Trend</h2>
+          <div class="range-toggle" id="rangeToggle">
+            <button data-range="30" class="active">30d</button>
+            <button data-range="90">90d</button>
+            <button data-range="365">1y</button>
+            <button data-range="0">All</button>
+          </div>
+        </div>
+        <canvas id="chart" height="320"></canvas>
+        <div class="legend">
+          <span class="legend-item"><i class="dot weight"></i>Daily weight</span>
+          <span class="legend-item"><i class="line trend"></i>Trend</span>
+          <span class="legend-item"><i class="line goal"></i>Goal</span>
+        </div>
+        <p id="chartEmpty" class="muted">Log a few days of weigh-ins to see your trend line appear.</p>
+      </div>
+    </section>
+
+    <!-- STATS VIEW -->
+    <section id="view-stats" class="view">
+      <div class="card stats-grid" id="statsGrid"></div>
+      <div class="card">
+        <h2>How this works</h2>
+        <p class="muted small">
+          Your daily weight bounces around with water, salt and digestion &mdash; noise.
+          The <strong>trend</strong> is a 10% exponentially-smoothed moving average that filters
+          out the noise so you can see what your body is actually doing:
+        </p>
+        <p class="formula">trend&#8341; = trend&#8341;&#8331;&#8321; + 0.1 &times; (weight&#8341; &minus; trend&#8341;&#8331;&#8321;)</p>
+        <p class="muted small">
+          A pound of fat is about 3500 kcal, so the rate your trend moves tells you your average
+          daily calorie surplus or deficit. Watch the trend, not the scale.
+        </p>
+      </div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section id="view-settings" class="view">
+      <div class="card">
+        <h2>Settings</h2>
+        <label class="field">
+          <span>Units</span>
+          <select id="unitSelect">
+            <option value="kg">Kilograms (kg)</option>
+            <option value="lb">Pounds (lb)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Goal weight (<em class="unitLabel">kg</em>)</span>
+          <input type="number" id="goalInput" inputmode="decimal" step="0.1" min="0" placeholder="optional" />
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>Your data</h2>
+        <p class="muted small">Everything is stored only on this device, in your browser. Back it up here.</p>
+        <div class="btn-row">
+          <button class="btn" id="exportBtn">Export JSON</button>
+          <button class="btn" id="importBtn">Import JSON</button>
+          <input type="file" id="importFile" accept="application/json" hidden />
+        </div>
+        <button class="btn danger" id="clearBtn">Erase all data</button>
+      </div>
+
+      <div class="card">
+        <h2>About</h2>
+        <p class="muted small">
+          Based on <em>The Hacker&rsquo;s Diet</em> by John Walker (1991&ndash;1993).
+          This is an unofficial personal tracker implementing its trend-and-feedback method.
+          Works offline &mdash; add it to your home screen.
+        </p>
+        <p class="muted small" id="installHint" hidden>
+          Tip: open the browser menu and choose <strong>&ldquo;Add to Home screen&rdquo;</strong> /
+          <strong>&ldquo;Install app&rdquo;</strong>.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-view="log"><span class="ico">&#9878;</span>Log</button>
+    <button class="tab" data-view="chart"><span class="ico">&#128200;</span>Chart</button>
+    <button class="tab" data-view="stats"><span class="ico">&#9776;</span>Stats</button>
+    <button class="tab" data-view="settings"><span class="ico">&#9881;</span>Settings</button>
+  </nav>
+
+  <script src="./app.js"></script>
+</body>
+</html>
