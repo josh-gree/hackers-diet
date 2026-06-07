@@ -148,6 +148,12 @@ canvas { width: 100%; display: block; margin: 8px 0; touch-action: pan-y; }
 .legend .line { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
 .legend .line.trend { background: var(--accent); }
 .legend .line.goal { background: var(--goal); }
+.legend .band { width: 16px; height: 10px; border-radius: 3px; display: inline-block; }
+.legend .band.healthy { background: rgba(72,187,120,.35); border: 1px solid rgba(72,187,120,.6); }
+
+.healthy-box { margin-top: 4px; }
+.healthy-box .btn { margin-top: 8px; }
+.healthy-box strong { color: var(--accent); }
 
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .stat { background: var(--surface-2); border-radius: 10px; padding: 14px; }

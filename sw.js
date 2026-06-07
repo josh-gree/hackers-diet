@@ -1,5 +1,5 @@
 /* Service worker — offline-first cache for the Hacker's Diet PWA */
-const CACHE = "hackdiet-v1";
+const CACHE = "hackdiet-v2";
 const ASSETS = [
   "./",
   "./index.html",

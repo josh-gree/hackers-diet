@@ -15,8 +15,13 @@ const state = {
   entries: [],          // [{date:'YYYY-MM-DD', kg:Number}]
   unit: "kg",           // 'kg' | 'lb'
   goalKg: null,
+  heightCm: null,       // for BMI
   range: 30,
 };
+
+// BMI category thresholds (kg/m^2)
+const BMI_HEALTHY_MIN = 18.5;
+const BMI_HEALTHY_MAX = 24.9;
 
 /* ---------- persistence ---------- */
 function load() {
@@ -25,12 +30,13 @@ function load() {
     if (Array.isArray(raw.entries)) state.entries = raw.entries;
     if (raw.unit === "kg" || raw.unit === "lb") state.unit = raw.unit;
     state.goalKg = typeof raw.goalKg === "number" ? raw.goalKg : null;
+    state.heightCm = typeof raw.heightCm === "number" ? raw.heightCm : null;
   } catch (e) { /* ignore corrupt data */ }
   sortEntries();
 }
 function save() {
   localStorage.setItem(STORE_KEY, JSON.stringify({
-    entries: state.entries, unit: state.unit, goalKg: state.goalKg,
+    entries: state.entries, unit: state.unit, goalKg: state.goalKg, heightCm: state.heightCm,
   }));
 }
 function sortEntries() { state.entries.sort((a, b) => a.date.localeCompare(b.date)); }
@@ -38,8 +44,27 @@ function sortEntries() { state.entries.sort((a, b) => a.date.localeCompare(b.dat
 /* ---------- units ---------- */
 const toDisplay = (kg) => state.unit === "lb" ? kg / KG_PER_LB : kg;
 const fromDisplay = (v) => state.unit === "lb" ? v * KG_PER_LB : v;
-const fmt = (kg, dp = 1) => toDisplay(kg).toFixed(dp);
+const fmt = (kg, dp = 2) => toDisplay(kg).toFixed(dp);
 const u = () => state.unit;
+
+/* ---------- BMI ---------- */
+const bmiFor = (kg) => {
+  if (!state.heightCm) return null;
+  const m = state.heightCm / 100;
+  return kg / (m * m);
+};
+function bmiCategory(bmi) {
+  if (bmi < BMI_HEALTHY_MIN) return { label: "Underweight", cls: "" };
+  if (bmi < 25) return { label: "Healthy", cls: "down" };
+  if (bmi < 30) return { label: "Overweight", cls: "up" };
+  return { label: "Obese", cls: "up" };
+}
+// Healthy weight range (kg) for the current height.
+function healthyRangeKg() {
+  if (!state.heightCm) return null;
+  const m = state.heightCm / 100;
+  return { min: BMI_HEALTHY_MIN * m * m, max: BMI_HEALTHY_MAX * m * m };
+}
 
 /* ---------- trend computation ---------- */
 // Returns parallel array of trend values (kg) aligned to sorted entries.
@@ -95,7 +120,18 @@ function renderAll() {
   renderLog();
   renderHeader();
   renderStats();
+  renderHealthyBox();
   drawChart();
+}
+
+function renderHealthyBox() {
+  const box = document.getElementById("healthyBox");
+  const text = document.getElementById("healthyText");
+  const hr = healthyRangeKg();
+  if (!hr) { box.hidden = true; return; }
+  box.hidden = false;
+  text.innerHTML = `Healthy weight for your height: <strong>${fmt(hr.min)}–${fmt(hr.max)} ${u()}</strong> ` +
+    `(BMI ${BMI_HEALTHY_MIN}–${BMI_HEALTHY_MAX}).`;
 }
 
 function renderUnitLabels() {
@@ -147,6 +183,22 @@ function renderStats() {
 
   cards.push(stat("Current trend", `${fmt(curTrend)} <small>${u()}</small>`));
   cards.push(stat("Latest weigh-in", `${fmt(latest.kg)} <small>${u()}</small>`, prettyDate(latest.date)));
+
+  const bmi = bmiFor(curTrend);
+  if (bmi !== null) {
+    const cat = bmiCategory(bmi);
+    cards.push(stat("Trend BMI", `<span class="${cat.cls}">${bmi.toFixed(2)}</span>`, cat.label));
+    const hr = healthyRangeKg();
+    if (curTrend > hr.max) {
+      cards.push(stat("To healthy", `${fmt(curTrend - hr.max)} <small>${u()}</small>`, `at BMI 24.9 = ${fmt(hr.max)} ${u()}`));
+    } else if (curTrend < hr.min) {
+      cards.push(stat("To healthy", `+${fmt(hr.min - curTrend)} <small>${u()}</small>`, `at BMI 18.5 = ${fmt(hr.min)} ${u()}`));
+    } else {
+      cards.push(stat("Healthy range", "✓ in range", `${fmt(hr.min)}–${fmt(hr.max)} ${u()}`));
+    }
+  } else {
+    cards.push(stat("BMI", "—", "set height in settings"));
+  }
 
   if (ratePerDay !== null) {
     const perWeek = ratePerDay * 7;
@@ -231,6 +283,8 @@ function drawChart() {
   data.forEach((e) => vals.push(toDisplay(e.kg)));
   trend.forEach((t) => vals.push(toDisplay(t)));
   if (state.goalKg !== null) vals.push(toDisplay(state.goalKg));
+  const healthy = healthyRangeKg();
+  if (healthy) vals.push(toDisplay(healthy.max));
   let min = Math.min(...vals), max = Math.max(...vals);
   if (min === max) { min -= 1; max += 1; }
   const pad = (max - min) * 0.12;
@@ -241,6 +295,22 @@ function drawChart() {
   const tSpan = Math.max(1, t1 - t0);
   const x = (dateStr) => padL + ((Date.parse(dateStr) - t0) / tSpan) * plotW;
   const y = (val) => padT + (1 - (val - min) / (max - min)) * plotH;
+
+  // healthy BMI band
+  const legendHealthy = document.getElementById("legendHealthy");
+  if (healthy) {
+    const yTop = y(toDisplay(healthy.max));
+    const yBot = y(toDisplay(healthy.min));
+    const top = Math.max(padT, Math.min(yTop, yBot));
+    const bot = Math.min(padT + plotH, Math.max(yTop, yBot));
+    if (bot > top) {
+      ctx.fillStyle = "rgba(72,187,120,0.13)";
+      ctx.fillRect(padL, top, plotW, bot - top);
+    }
+    if (legendHealthy) legendHealthy.hidden = false;
+  } else if (legendHealthy) {
+    legendHealthy.hidden = true;
+  }
 
   // gridlines + y labels
   ctx.font = "11px -apple-system, system-ui, sans-serif";
@@ -357,6 +427,23 @@ function initUI() {
     renderAll();
   });
 
+  const heightInput = document.getElementById("heightInput");
+  heightInput.value = state.heightCm !== null ? state.heightCm : "";
+  heightInput.addEventListener("change", () => {
+    const v = parseFloat(heightInput.value);
+    state.heightCm = isFinite(v) && v > 0 ? v : null;
+    save();
+    renderAll();
+  });
+  document.getElementById("healthyGoalBtn").addEventListener("click", () => {
+    const hr = healthyRangeKg();
+    if (!hr) return;
+    state.goalKg = hr.max;
+    save();
+    syncGoalInput();
+    renderAll();
+  });
+
   // data tools
   document.getElementById("exportBtn").addEventListener("click", exportData);
   document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
@@ -364,7 +451,8 @@ function initUI() {
   document.getElementById("clearBtn").addEventListener("click", () => {
     if (confirm("Erase ALL weigh-ins and settings on this device? This cannot be undone.")) {
       localStorage.removeItem(STORE_KEY);
-      state.entries = []; state.goalKg = null;
+      state.entries = []; state.goalKg = null; state.heightCm = null;
+      document.getElementById("heightInput").value = "";
       save(); syncGoalInput(); renderAll();
     }
   });
@@ -393,7 +481,7 @@ function switchView(view) {
 
 function exportData() {
   const blob = new Blob([JSON.stringify({
-    entries: state.entries, unit: state.unit, goalKg: state.goalKg,
+    entries: state.entries, unit: state.unit, goalKg: state.goalKg, heightCm: state.heightCm,
     exportedAt: new Date().toISOString(), app: "hackers-diet",
   }, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -418,8 +506,10 @@ function importData(ev) {
       state.entries = clean;
       if (data.unit === "kg" || data.unit === "lb") state.unit = data.unit;
       state.goalKg = typeof data.goalKg === "number" ? data.goalKg : state.goalKg;
+      state.heightCm = typeof data.heightCm === "number" ? data.heightCm : state.heightCm;
       sortEntries(); save();
       document.getElementById("unitSelect").value = state.unit;
+      document.getElementById("heightInput").value = state.heightCm !== null ? state.heightCm : "";
       syncGoalInput(); renderAll();
       alert("Import complete.");
     } catch (e) {
