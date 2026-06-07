@@ -60,7 +60,6 @@
         <div class="legend">
           <span class="legend-item"><i class="dot weight"></i>Daily weight</span>
           <span class="legend-item"><i class="line trend"></i>Trend</span>
-          <span class="legend-item"><i class="line goal"></i>Goal</span>
           <span class="legend-item" id="legendHealthy" hidden><i class="band healthy"></i>Healthy BMI</span>
         </div>
         <p id="chartEmpty" class="muted">Log a few days of weigh-ins to see your trend line appear.</p>
@@ -100,13 +99,9 @@
           <span>Height (cm)</span>
           <input type="number" id="heightInput" inputmode="decimal" step="0.1" min="0" placeholder="for BMI" />
         </label>
-        <label class="field">
-          <span>Goal weight (<em class="unitLabel">kg</em>)</span>
-          <input type="number" id="goalInput" inputmode="decimal" step="0.01" min="0" placeholder="optional" />
-        </label>
         <div id="healthyBox" class="healthy-box" hidden>
           <p class="muted small" id="healthyText"></p>
-          <button class="btn" id="healthyGoalBtn">Set goal to top of healthy (BMI 24.9)</button>
+          <p class="muted small">Your target is to bring the trend line into this band &mdash; no goal number needed.</p>
         </div>
       </div>
 

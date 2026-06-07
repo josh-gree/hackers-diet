@@ -14,8 +14,7 @@ const STORE_KEY = "hackdiet.v1";
 const state = {
   entries: [],          // [{date:'YYYY-MM-DD', kg:Number}]
   unit: "kg",           // 'kg' | 'lb'
-  goalKg: null,
-  heightCm: null,       // for BMI
+  heightCm: null,       // for BMI; target is the healthy BMI band
   range: 30,
 };
 
@@ -29,14 +28,13 @@ function load() {
     const raw = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
     if (Array.isArray(raw.entries)) state.entries = raw.entries;
     if (raw.unit === "kg" || raw.unit === "lb") state.unit = raw.unit;
-    state.goalKg = typeof raw.goalKg === "number" ? raw.goalKg : null;
     state.heightCm = typeof raw.heightCm === "number" ? raw.heightCm : null;
   } catch (e) { /* ignore corrupt data */ }
   sortEntries();
 }
 function save() {
   localStorage.setItem(STORE_KEY, JSON.stringify({
-    entries: state.entries, unit: state.unit, goalKg: state.goalKg, heightCm: state.heightCm,
+    entries: state.entries, unit: state.unit, heightCm: state.heightCm,
   }));
 }
 function sortEntries() { state.entries.sort((a, b) => a.date.localeCompare(b.date)); }
@@ -64,6 +62,14 @@ function healthyRangeKg() {
   if (!state.heightCm) return null;
   const m = state.heightCm / 100;
   return { min: BMI_HEALTHY_MIN * m * m, max: BMI_HEALTHY_MAX * m * m };
+}
+// The target is the nearest edge of the healthy band; null if already inside (or no height).
+function targetKg(kg) {
+  const hr = healthyRangeKg();
+  if (!hr) return null;
+  if (kg > hr.max) return hr.max;
+  if (kg < hr.min) return hr.min;
+  return null;
 }
 
 /* ---------- trend computation ---------- */
@@ -218,19 +224,19 @@ function renderStats() {
     cards.push(stat("Daily calories", "—", "need 2+ days"));
   }
 
-  if (state.goalKg !== null) {
-    const remaining = curTrend - state.goalKg;
-    cards.push(stat("To goal", `${(remaining >= 0 ? "" : "+") + fmt(curTrend - state.goalKg)} <small>${u()}</small>`,
-      `goal ${fmt(state.goalKg)} ${u()}`));
-    // forecast
+  // forecast to the healthy band
+  const target = targetKg(curTrend);
+  if (target !== null) {
     if (ratePerDay !== null && Math.abs(ratePerDay) > 1e-6 &&
-        Math.sign(ratePerDay) === Math.sign(state.goalKg - curTrend)) {
-      const daysOut = Math.abs(remaining / ratePerDay);
+        Math.sign(ratePerDay) === Math.sign(target - curTrend)) {
+      const daysOut = Math.abs((curTrend - target) / ratePerDay);
       const eta = dateMinusDays(latest.date, -Math.round(daysOut));
-      cards.push(stat("Forecast", prettyDate(eta), `~${Math.round(daysOut)} days`));
+      cards.push(stat("Healthy ETA", prettyDate(eta), `~${Math.round(daysOut)} days`));
     } else {
-      cards.push(stat("Forecast", "—", "trend not heading to goal"));
+      cards.push(stat("Healthy ETA", "—", "trend not heading there"));
     }
+  } else if (bmi !== null) {
+    cards.push(stat("Status", `<span class="down">✓ healthy</span>`, "hold the trend"));
   }
 
   grid.innerHTML = cards.join("");
@@ -271,7 +277,6 @@ function drawChart() {
   const style = getComputedStyle(document.documentElement);
   const cAccent = style.getPropertyValue("--accent").trim() || "#4fd1c5";
   const cWeight = style.getPropertyValue("--weight").trim() || "#6b7280";
-  const cGoal = style.getPropertyValue("--goal").trim() || "#f6ad55";
   const cMuted = style.getPropertyValue("--muted").trim() || "#9a9aa8";
 
   const padL = 42, padR = 12, padT = 14, padB = 24;
@@ -282,7 +287,6 @@ function drawChart() {
   let vals = [];
   data.forEach((e) => vals.push(toDisplay(e.kg)));
   trend.forEach((t) => vals.push(toDisplay(t)));
-  if (state.goalKg !== null) vals.push(toDisplay(state.goalKg));
   const healthy = healthyRangeKg();
   if (healthy) vals.push(toDisplay(healthy.max));
   let min = Math.min(...vals), max = Math.max(...vals);
@@ -332,16 +336,6 @@ function drawChart() {
   ctx.fillText(prettyDate(data[0].date), padL, cssH - 10);
   ctx.textAlign = "right";
   ctx.fillText(prettyDate(data[data.length - 1].date), cssW - padR, cssH - 10);
-
-  // goal line
-  if (state.goalKg !== null) {
-    const gy = y(toDisplay(state.goalKg));
-    ctx.strokeStyle = cGoal;
-    ctx.setLineDash([5, 5]);
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(cssW - padR, gy); ctx.stroke();
-    ctx.setLineDash([]);
-  }
 
   // daily weight dots
   ctx.fillStyle = cWeight;
@@ -414,16 +408,6 @@ function initUI() {
   unitSel.addEventListener("change", () => {
     state.unit = unitSel.value;
     save();
-    syncGoalInput();
-    renderAll();
-  });
-
-  const goalInput = document.getElementById("goalInput");
-  syncGoalInput();
-  goalInput.addEventListener("change", () => {
-    const v = parseFloat(goalInput.value);
-    state.goalKg = isFinite(v) && v > 0 ? fromDisplay(v) : null;
-    save();
     renderAll();
   });
 
@@ -435,14 +419,6 @@ function initUI() {
     save();
     renderAll();
   });
-  document.getElementById("healthyGoalBtn").addEventListener("click", () => {
-    const hr = healthyRangeKg();
-    if (!hr) return;
-    state.goalKg = hr.max;
-    save();
-    syncGoalInput();
-    renderAll();
-  });
 
   // data tools
   document.getElementById("exportBtn").addEventListener("click", exportData);
@@ -451,9 +427,9 @@ function initUI() {
   document.getElementById("clearBtn").addEventListener("click", () => {
     if (confirm("Erase ALL weigh-ins and settings on this device? This cannot be undone.")) {
       localStorage.removeItem(STORE_KEY);
-      state.entries = []; state.goalKg = null; state.heightCm = null;
+      state.entries = []; state.heightCm = null;
       document.getElementById("heightInput").value = "";
-      save(); syncGoalInput(); renderAll();
+      save(); renderAll();
     }
   });
 
@@ -463,11 +439,6 @@ function initUI() {
   window.addEventListener("beforeinstallprompt", () => {
     document.getElementById("installHint").hidden = false;
   });
-}
-
-function syncGoalInput() {
-  const goalInput = document.getElementById("goalInput");
-  goalInput.value = state.goalKg !== null ? fmt(state.goalKg) : "";
 }
 
 function switchView(view) {
@@ -481,7 +452,7 @@ function switchView(view) {
 
 function exportData() {
   const blob = new Blob([JSON.stringify({
-    entries: state.entries, unit: state.unit, goalKg: state.goalKg, heightCm: state.heightCm,
+    entries: state.entries, unit: state.unit, heightCm: state.heightCm,
     exportedAt: new Date().toISOString(), app: "hackers-diet",
   }, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -505,12 +476,11 @@ function importData(ev) {
       if (!confirm(`Import ${clean.length} weigh-ins? This replaces your current data.`)) return;
       state.entries = clean;
       if (data.unit === "kg" || data.unit === "lb") state.unit = data.unit;
-      state.goalKg = typeof data.goalKg === "number" ? data.goalKg : state.goalKg;
       state.heightCm = typeof data.heightCm === "number" ? data.heightCm : state.heightCm;
       sortEntries(); save();
       document.getElementById("unitSelect").value = state.unit;
       document.getElementById("heightInput").value = state.heightCm !== null ? state.heightCm : "";
-      syncGoalInput(); renderAll();
+      renderAll();
       alert("Import complete.");
     } catch (e) {
       alert("Could not read that file — is it a Hacker's Diet export?");
