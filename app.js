@@ -9,7 +9,11 @@
 const KG_PER_LB = 0.45359237;
 const KCAL_PER_LB = 3500;
 const SMOOTH = 0.1;
-const STORE_KEY = "hackdiet.v1";
+
+/* The kvdb.io bucket is the SINGLE SOURCE OF TRUTH.
+ * There is no local storage: the app reads this on load and writes it on
+ * every change. Anyone with this URL can read and write the data. */
+const BUCKET_URL = "https://kvdb.io/2AMtCYnj3KTHYKKofy5xKE/hackdiet";
 
 const state = {
   entries: [],          // [{date:'YYYY-MM-DD', kg:Number}]
@@ -18,24 +22,71 @@ const state = {
   range: 30,
 };
 
+let loaded = false;     // true once the cloud state has been read successfully
+
 // BMI category thresholds (kg/m^2)
 const BMI_HEALTHY_MIN = 18.5;
 const BMI_HEALTHY_MAX = 24.9;
 
-/* ---------- persistence ---------- */
-function load() {
+/* ---------- cloud persistence (kvdb bucket is the source of truth) ---------- */
+function syncStatus(cls, msg) {
+  const el = document.getElementById("syncStatus");
+  if (el) { el.textContent = msg; el.className = "muted small " + cls; }
+}
+
+/* Read the whole state from the bucket. A 404 means the bucket is empty
+ * (first run) — that's a valid "loaded" state. Any network/HTTP failure
+ * leaves `loaded` false so we never overwrite good cloud data with nothing. */
+async function load() {
+  syncStatus("", "Loading from cloud…");
   try {
-    const raw = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
-    if (Array.isArray(raw.entries)) state.entries = raw.entries;
-    if (raw.unit === "kg" || raw.unit === "lb") state.unit = raw.unit;
-    state.heightCm = typeof raw.heightCm === "number" ? raw.heightCm : null;
-  } catch (e) { /* ignore corrupt data */ }
+    const res = await fetch(BUCKET_URL, { cache: "no-store" });
+    if (res.status === 404) {
+      loaded = true;
+      syncStatus("ok", "Connected — no data in the cloud yet.");
+    } else if (res.ok) {
+      const raw = await res.json();
+      if (Array.isArray(raw.entries)) state.entries = raw.entries;
+      if (raw.unit === "kg" || raw.unit === "lb") state.unit = raw.unit;
+      state.heightCm = typeof raw.heightCm === "number" ? raw.heightCm : null;
+      loaded = true;
+      syncStatus("ok", "✓ Loaded from cloud.");
+    } else {
+      throw new Error("HTTP " + res.status);
+    }
+  } catch (e) {
+    loaded = false;
+    syncStatus("error", "⚠️ Can’t reach the cloud. Don’t add data — it won’t be saved. Reconnect and reload.");
+  }
   sortEntries();
 }
+
+/* Push the full state to the bucket. Pushes are serialized: if one is in
+ * flight, the latest change is coalesced and sent right after. */
+let pushInFlight = false;
+let pushPending = false;
 function save() {
-  localStorage.setItem(STORE_KEY, JSON.stringify({
+  if (!loaded) {
+    syncStatus("error", "⚠️ Not connected — change NOT saved. Reload when online.");
+    return;
+  }
+  if (pushInFlight) { pushPending = true; return; }
+  pushInFlight = true;
+  syncStatus("", "Saving…");
+  const body = JSON.stringify({
     entries: state.entries, unit: state.unit, heightCm: state.heightCm,
-  }));
+  });
+  fetch(BUCKET_URL, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body,
+  }).then((res) => {
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    syncStatus("ok", "✓ Saved to cloud.");
+  }).catch(() => {
+    syncStatus("error", "⚠️ Save failed — last change may not be stored. Check connection.");
+  }).finally(() => {
+    pushInFlight = false;
+    if (pushPending) { pushPending = false; save(); }
+  });
 }
 function sortEntries() { state.entries.sort((a, b) => a.date.localeCompare(b.date)); }
 
@@ -359,6 +410,7 @@ function drawChart() {
 
 /* ---------- mutations ---------- */
 function addEntry(dateStr, displayWeight) {
+  if (!loaded) { alert("Not connected to the cloud yet — reload when you're online before adding data."); return; }
   const kg = fromDisplay(displayWeight);
   const existing = state.entries.find((e) => e.date === dateStr);
   if (existing) existing.kg = kg;
@@ -368,6 +420,7 @@ function addEntry(dateStr, displayWeight) {
   renderAll();
 }
 function deleteEntry(dateStr) {
+  if (!loaded) { alert("Not connected to the cloud yet — reload when you're online."); return; }
   state.entries = state.entries.filter((e) => e.date !== dateStr);
   save();
   renderAll();
@@ -421,12 +474,9 @@ function initUI() {
   });
 
   // data tools
-  document.getElementById("exportBtn").addEventListener("click", exportData);
-  document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
-  document.getElementById("importFile").addEventListener("change", importData);
   document.getElementById("clearBtn").addEventListener("click", () => {
-    if (confirm("Erase ALL weigh-ins and settings on this device? This cannot be undone.")) {
-      localStorage.removeItem(STORE_KEY);
+    if (!loaded) { alert("Not connected to the cloud yet."); return; }
+    if (confirm("Erase ALL weigh-ins and settings from the cloud? This cannot be undone.")) {
       state.entries = []; state.heightCm = null;
       document.getElementById("heightInput").value = "";
       save(); renderAll();
@@ -450,50 +500,16 @@ function switchView(view) {
   window.scrollTo(0, 0);
 }
 
-function exportData() {
-  const blob = new Blob([JSON.stringify({
-    entries: state.entries, unit: state.unit, heightCm: state.heightCm,
-    exportedAt: new Date().toISOString(), app: "hackers-diet",
-  }, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `hackers-diet-${todayStr()}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function importData(ev) {
-  const file = ev.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-      if (!Array.isArray(data.entries)) throw new Error("bad file");
-      const clean = data.entries
-        .filter((e) => e && typeof e.date === "string" && isFinite(e.kg))
-        .map((e) => ({ date: e.date, kg: +e.kg }));
-      if (!confirm(`Import ${clean.length} weigh-ins? This replaces your current data.`)) return;
-      state.entries = clean;
-      if (data.unit === "kg" || data.unit === "lb") state.unit = data.unit;
-      state.heightCm = typeof data.heightCm === "number" ? data.heightCm : state.heightCm;
-      sortEntries(); save();
-      document.getElementById("unitSelect").value = state.unit;
-      document.getElementById("heightInput").value = state.heightCm !== null ? state.heightCm : "";
-      renderAll();
-      alert("Import complete.");
-    } catch (e) {
-      alert("Could not read that file — is it a Hacker's Diet export?");
-    }
-    ev.target.value = "";
-  };
-  reader.readAsText(file);
-}
-
 /* ---------- boot ---------- */
-load();
-initUI();
-renderAll();
+async function boot() {
+  initUI();          // wire up controls immediately
+  await load();      // pull the source-of-truth state from the cloud
+  // reflect loaded settings back into the form fields
+  document.getElementById("unitSelect").value = state.unit;
+  document.getElementById("heightInput").value = state.heightCm !== null ? state.heightCm : "";
+  renderAll();
+}
+boot();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

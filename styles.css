@@ -121,6 +121,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
+.ok { color: #3fb950; }
+.warn { color: #d29922; }
 .formula {
   background: var(--surface-2);
   border-radius: 8px;

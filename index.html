@@ -107,12 +107,8 @@
 
       <div class="card">
         <h2>Your data</h2>
-        <p class="muted small">Everything is stored only on this device, in your browser. Back it up here.</p>
-        <div class="btn-row">
-          <button class="btn" id="exportBtn">Export JSON</button>
-          <button class="btn" id="importBtn">Import JSON</button>
-          <input type="file" id="importFile" accept="application/json" hidden />
-        </div>
+        <p class="muted small">Your weigh-ins live in the cloud and sync automatically &mdash; this app reads and writes a single shared copy. Use it from any device.</p>
+        <p class="muted small" id="syncStatus">Loading from cloud&hellip;</p>
         <button class="btn danger" id="clearBtn">Erase all data</button>
       </div>
 
@@ -121,7 +117,7 @@
         <p class="muted small">
           Based on <em>The Hacker&rsquo;s Diet</em> by John Walker (1991&ndash;1993).
           This is an unofficial personal tracker implementing its trend-and-feedback method.
-          Works offline &mdash; add it to your home screen.
+          Your data syncs to the cloud, so a connection is needed to load and save &mdash; add it to your home screen.
         </p>
         <p class="muted small" id="installHint" hidden>
           Tip: open the browser menu and choose <strong>&ldquo;Add to Home screen&rdquo;</strong> /

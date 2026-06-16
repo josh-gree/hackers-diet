@@ -1,5 +1,5 @@
 /* Service worker — offline-first cache for the Hacker's Diet PWA */
-const CACHE = "hackdiet-v3";
+const CACHE = "hackdiet-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -26,6 +26,9 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  // Never touch cross-origin requests (e.g. the kvdb cloud bucket) — let them
+  // hit the network directly so cloud reads/writes are never cached or stale.
+  if (new URL(e.request.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const network = fetch(e.request).then((res) => {
